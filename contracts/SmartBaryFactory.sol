@@ -289,15 +289,15 @@ contract SmartBaryFactoryRewarder {
                 rewardBal > 0,
                 "SmartBaryFactoryRewarder: Reward Balances must be greater than 0"
             );
-            bool isOverPool = pendingReward > rewardBal;
+            bool isOverPool = pendingReward >= rewardBal;
 
             rewardDebts[user][i] = isOverPool
                 ? pendingReward.sub(rewardBal)
                 : 0;
-            rewardTokens[i].safeTransfer(
-                user,
-                isOverPool ? rewardBal : pendingReward
-            );
+            uint256 claimRewardAmount = isOverPool ? rewardBal : pendingReward;
+            if (claimRewardAmount > 0) {
+                rewardTokens[i].safeTransfer(user, claimRewardAmount);
+            }
         }
     }
 
@@ -315,11 +315,7 @@ contract SmartBaryFactoryRewarder {
                 harvestAmount.mul(rewardMultipliers[i])
             );
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
-            if (pendingReward > rewardBal) {
-                amounts[i] = rewardBal;
-            } else {
-                amounts[i] = pendingReward;
-            }
+            amounts[i] = pendingReward >= rewardBal ? rewardBal : pendingReward;
         }
         return (rewardTokens, amounts);
     }
@@ -453,11 +449,6 @@ contract SmartBaryFactory is Ownable {
     /// @notice Returns list of all lpTokens already added
     function lpTokens() external view returns (IERC20[] memory) {
         return lpToken;
-    }
-
-    /// @notice Returns list of all pool infos
-    function poolInfos() external view returns (PoolInfo[] memory) {
-        return poolInfo;
     }
 
     /// @notice Check Block time start condition of each pool
