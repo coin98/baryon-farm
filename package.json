@@ -1,0 +1,27 @@
+{
+  "name": "baryon-farm",
+  "version": "0.1.0",
+  "description": "Baryon Farm Implementation",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/coin98/baryon-farm"
+  },
+  "keywords": [
+    "c98",
+    "baryon",
+    "coin98",
+    "erc20",
+    "farm",
+    "wallet"
+  ],
+  "author": "KhiemKino",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/coin98/baryon-farm/issues"
+  },
+  "homepage": "https://github.com/coin98/baryon-farm#readme"
+}
