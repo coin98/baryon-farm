@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma experimental ABIEncoderV2;
-pragma solidity >=0.8.0;
+pragma solidity 0.8.13;
 
 library SafeMath {
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
@@ -101,6 +101,67 @@ abstract contract Ownable is Context {
         );
         emit OwnershipTransferred(_owner, newOwner);
         _owner = newOwner;
+    }
+}
+
+abstract contract Operator is Context {
+    address private _operator;
+
+    event OperatorTransferred(
+        address indexed previousOperator,
+        address indexed newOperator
+    );
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial operator.
+     */
+    constructor() {
+        address msgSender = _msgSender();
+        _operator = msgSender;
+        emit OperatorTransferred(address(0), msgSender);
+    }
+
+    /**
+     * @dev Returns the address of the current operator.
+     */
+    function operator() public view virtual returns (address) {
+        return _operator;
+    }
+
+    /**
+     * @dev Throws if called by any account other than the operator.
+     */
+    modifier onlyOperator() {
+        require(
+            operator() == _msgSender(),
+            "Ownable: Caller is not the operator"
+        );
+        _;
+    }
+
+    /**
+     * @dev Leaves the contract without operator. It will not be possible to call
+     * `onlyOperator` functions anymore. Can only be called by the current operator.
+     *
+     * NOTE: Renouncing operator will leave the contract without an operator,
+     * thereby removing any functionality that is only available to the operator.
+     */
+    function renounceOperator() public virtual onlyOperator {
+        emit OperatorTransferred(_operator, address(0));
+        _operator = address(0);
+    }
+
+    /**
+     * @dev Transfers operator of the contract to a new account (`newOperator`).
+     * Can only be called by the current operator.
+     */
+    function transferOperator(address newOperator) public virtual onlyOperator {
+        require(
+            newOperator != address(0),
+            "Ownable: New operator is the zero address"
+        );
+        emit OperatorTransferred(_operator, newOperator);
+        _operator = newOperator;
     }
 }
 
@@ -208,6 +269,54 @@ library SafeERC20 {
     }
 }
 
+/**
+ * @dev Provide mechanism for Time Locking, Owner of contract can unlock this contract, after locking time 
+ * owner can execute special function and then contract will be lock again.
+ *
+ * This contract is only required for intermediate, library-like contracts.
+ */
+contract TimeLock is Ownable {
+    uint private _lockTime;
+
+    mapping(bytes4 => bool) _isUnlock;
+    mapping(bytes4 => uint) _unlockAts;
+
+    event Unlock(bytes4 _functionSign, uint _timeUnlock);
+
+    /**
+     * @dev Initializes the contract setting the deployer as the initial lock time.
+     */
+    constructor(uint lockTime) {
+        _lockTime = lockTime;
+    }
+
+    /**
+     * @dev Returns contract is unlock.
+     */
+    function isUnlock(bytes4 _functionSign) public virtual view returns(bool) {
+        return _isUnlock[_functionSign] && (_unlockAts[_functionSign] + _lockTime) <= block.timestamp;
+    }
+
+    /**
+     * @dev Throws if contract is lock, after execute function contract will be lock again.
+     */
+    modifier whenUnlock() {
+        require(isUnlock(msg.sig), "LockSchedule: contract is locked");
+        _;
+        _isUnlock[msg.sig] = false;
+    }
+
+    /**
+     * @dev Unlock contract, contract state Lock -> Pending -> Unlock -> Lock.
+     */
+    function unlock(bytes4 _functionSign) external onlyOwner {
+        _isUnlock[_functionSign] = true;
+        _unlockAts[_functionSign] = block.timestamp;
+
+        emit Unlock(_functionSign, block.timestamp);
+    }
+}
+
 // File contracts/SmartBaryFactoryRewarder.sol
 /// @title Smart Baryon Factory Rewarder
 /// @notice Pool to hold reward minted from SmartBaryFactory
@@ -249,7 +358,7 @@ contract SmartBaryFactoryRewarder {
     function initialize(
         IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers
-    ) public onlyBaryonFactory {
+    ) external onlyBaryonFactory {
         require(
             _rewardTokens.length > 0 &&
                 _rewardTokens.length <= MAX_REWARDS &&
@@ -359,7 +468,7 @@ contract SmartBaryFactoryRewarder {
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
-contract SmartBaryFactory is Ownable {
+contract SmartBaryFactory is TimeLock, Operator {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -383,6 +492,7 @@ contract SmartBaryFactory is Ownable {
         uint256 rewardsExpiration;
         uint256 lastRewardTime;
         uint256 rewardPerSeconds;
+        uint256[] oldReserveBalance;
     }
 
     /// @notice Info of each pool pool.
@@ -441,6 +551,14 @@ contract SmartBaryFactory is Ownable {
         uint256 accRewardPerShare
     );
 
+    event WithdrawMultiplePool(uint256[] indexed pid);
+    event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
+    event SetRewardConfig(uint256 indexed pid, IERC20[], uint256[]);
+    event WithdrawMultiple(address[] tokens);
+
+    constructor() TimeLock(86400) {
+    }
+
     /// @notice Returns the size of all current pools.
     function poolLength() public view returns (uint256 pools) {
         pools = poolInfo.length;
@@ -477,7 +595,7 @@ contract SmartBaryFactory is Ownable {
         uint256 _rewardPerSeconds,
         uint256 _rewardsExpiration,
         address _lpToken
-    ) external onlyOwner {
+    ) external onlyOperator {
         uint256 tokenCode;
         assembly {
             tokenCode := extcodesize(_lpToken)
@@ -514,6 +632,15 @@ contract SmartBaryFactory is Ownable {
             "SmartBaryFactory: LP token already added"
         );
 
+        require(
+            _rewardsExpiration > _rewardsStartTime,
+            "SmartBaryFactory: Invalid time"
+        );
+        require(
+            _rewardsExpiration > block.timestamp && _rewardsStartTime > block.timestamp,
+            "SmartBaryFactory: Invalid expiration time"
+        );
+
         bytes memory bytecode = type(SmartBaryFactoryRewarder).creationCode;
         bytecode = abi.encodePacked(bytecode, abi.encode(address(this)));
         bytes32 salt = keccak256(abi.encodePacked(_lpToken, _rewardsStartTime));
@@ -528,6 +655,22 @@ contract SmartBaryFactory is Ownable {
             )
         }
 
+        uint256[] memory oldReserveBalance = new uint256[](
+            _rewardTokens.length
+        );
+        // Deposit token to pool before add new pool
+        uint256 rewardAmountEstTotal = (_rewardsExpiration -
+            _rewardsStartTime) * _rewardPerSeconds;
+        for (uint256 i = 0; i < _rewardTokens.length; i++) {
+            
+            _rewardTokens[i].safeTransferFrom(
+                msg.sender,
+                baryonFarmRewarder,
+                rewardAmountEstTotal * _rewardMultipliers[i]
+            );
+            oldReserveBalance[i] = rewardAmountEstTotal * _rewardMultipliers[i];
+        }
+
         SmartBaryFactoryRewarder(baryonFarmRewarder).initialize(
             _rewardTokens,
             _rewardMultipliers
@@ -536,13 +679,19 @@ contract SmartBaryFactory is Ownable {
         lpToken.push(_lpToken);
         rewarder.push(SmartBaryFactoryRewarder(baryonFarmRewarder));
 
+        // Validate time for not farm reward in the past
+        uint256 lastRewardTime = block.timestamp >= _rewardsStartTime
+            ? block.timestamp
+            : _rewardsStartTime;
+
         poolInfo.push(
             PoolInfo({
                 rewardsStartTime: _rewardsStartTime,
                 rewardsExpiration: _rewardsExpiration,
                 rewardPerSeconds: _rewardPerSeconds,
-                lastRewardTime: block.timestamp,
-                accRewardPerShare: 0
+                lastRewardTime: lastRewardTime,
+                accRewardPerShare: 0,
+                oldReserveBalance: oldReserveBalance
             })
         );
 
@@ -565,7 +714,7 @@ contract SmartBaryFactory is Ownable {
         uint256 _rewardPerSeconds,
         SmartBaryFactoryRewarder _rewarder,
         bool overwrite
-    ) external onlyOwner {
+    ) external onlyOwner whenUnlock() {
         massUpdateAllPools();
         set(
             _pid,
@@ -586,9 +735,54 @@ contract SmartBaryFactory is Ownable {
         SmartBaryFactoryRewarder _rewarder,
         bool overwrite
     ) internal {
+        require(
+            _rewardsExpiration > _rewardsStartTime,
+            "SmartBaryFactory: Invalid time"
+        );
+        require(
+            _rewardsExpiration > block.timestamp,
+            "SmartBaryFactory: Invalid expiration time"
+        );
+
+        uint256 newRewardsStartTime = _rewardsStartTime > block.timestamp
+            ? _rewardsStartTime
+            : block.timestamp;
+        uint256 rewardAmountEstTotal = (_rewardsExpiration -
+            _rewardsStartTime) * _rewardPerSeconds;
+
+        IERC20[] memory tokens = _rewarder.getRewardTokens();
+
+        for (uint256 i = 0; i < tokens.length; i++) {
+            uint256 tokenBalance = IERC20(tokens[i]).balanceOf(
+                address(_rewarder)
+            );
+            uint256 rewardMultiplier = _rewarder.getRewardMultipliers()[i];
+
+            // Deposit token to pool if not enough balance
+            uint256 oldReserveBalance = (newRewardsStartTime -
+                poolInfo[_pid].rewardsStartTime) *
+                poolInfo[_pid].rewardPerSeconds +
+                poolInfo[_pid].oldReserveBalance[i];
+            uint256 remainReserveReward = tokenBalance > oldReserveBalance
+                ? tokenBalance - oldReserveBalance
+                : 0;
+            IERC20(tokens[i]).safeTransferFrom(
+                msg.sender,
+                address(_rewarder),
+                rewardAmountEstTotal * rewardMultiplier >
+                remainReserveReward
+                ? (rewardAmountEstTotal * rewardMultiplier) -
+                    remainReserveReward
+                : 0
+            );
+            poolInfo[_pid].oldReserveBalance[i] = oldReserveBalance;
+        }
+
+        // Update information
         poolInfo[_pid].rewardsStartTime = _rewardsStartTime;
         poolInfo[_pid].rewardsExpiration = _rewardsExpiration;
         poolInfo[_pid].rewardPerSeconds = _rewardPerSeconds;
+
         if (overwrite) {
             rewarder[_pid] = _rewarder;
         }
@@ -789,26 +983,32 @@ contract SmartBaryFactory is Ownable {
 
     /// @notice Withdraw all token reward in pool
     /// @param pid The index of the pool.
-    function withdrawMultiplePool(uint256[] calldata pid) public onlyOwner {
+    function withdrawMultiplePool(uint256[] calldata pid)
+        external
+        onlyOwner
+        whenUnlock()
+    {
         for (uint256 i = 0; i < pid.length; i++) {
             SmartBaryFactoryRewarder _rewarder = rewarder[pid[i]];
             if (address(_rewarder) != address(0)) {
                 _rewarder.withdrawForOwner();
             }
         }
+        emit WithdrawMultiplePool(pid);
     }
 
     /// @notice Withdraw the token from the pool
     /// @param pid The index of the pool.
     /// @param tokens The token contract token that want to withdraw of the pool
     function withdrawPoolTokens(uint256 pid, address[] calldata tokens)
-        public
-        onlyOwner
+        external
+        onlyOperator
     {
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
             _rewarder.withdrawTokens(tokens);
         }
+        emit WithdrawPoolTokens(pid, tokens);
     }
 
     /// @notice Update reward infomation
@@ -819,17 +1019,23 @@ contract SmartBaryFactory is Ownable {
         uint256 pid,
         IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers
-    ) public onlyOwner {
+    ) external onlyOwner whenUnlock() {
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
             _rewarder.initialize(_rewardTokens, _rewardMultipliers);
         }
+        emit SetRewardConfig(pid, _rewardTokens, _rewardMultipliers);
     }
 
-    /// @notice Withdraw all token from all pool
+    /// @notice Withdraw all token from all pool ( not use this for LP tokens )
     /// @param tokens The token contract that want to withdraw from all pool
-    function withdrawMultiple(address[] calldata tokens) public onlyOwner {
+    function withdrawMultiple(address[] calldata tokens) external onlyOperator {
         for (uint256 i = 0; i < tokens.length; i++) {
+            require(
+                listAddedLPs[address(tokens[i])] == false,
+                "SmartBaryFactory: LP token can not be withdrawn"
+            );
+
             IERC20 token = IERC20(tokens[i]);
 
             uint256 tokenBalance = token.balanceOf(address(this));
@@ -837,5 +1043,6 @@ contract SmartBaryFactory is Ownable {
                 token.safeTransfer(msg.sender, tokenBalance);
             }
         }
+        emit WithdrawMultiple(tokens);
     }
 }
