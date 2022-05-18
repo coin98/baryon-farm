@@ -270,31 +270,33 @@ library SafeERC20 {
 }
 
 /**
- * @dev Provide mechanism for Time Locking, Owner of contract can unlock this contract, after locking time 
+ * @dev Provide mechanism for Time Locking, Owner of contract can unlock this contract, after locking time
  * owner can execute special function and then contract will be lock again.
  *
  * This contract is only required for intermediate, library-like contracts.
  */
 contract TimeLock is Ownable {
-    uint private _lockTime;
+    uint256 private _lockTime;
 
     mapping(bytes4 => bool) _isUnlock;
-    mapping(bytes4 => uint) _unlockAts;
+    mapping(bytes4 => uint256) _unlockAts;
 
-    event Unlock(bytes4 _functionSign, uint _timeUnlock);
+    event Unlock(bytes4 _functionSign, uint256 _timeUnlock);
 
     /**
      * @dev Initializes the contract setting the deployer as the initial lock time.
      */
-    constructor(uint lockTime) {
+    constructor(uint256 lockTime) {
         _lockTime = lockTime;
     }
 
     /**
      * @dev Returns contract is unlock.
      */
-    function isUnlock(bytes4 _functionSign) public virtual view returns(bool) {
-        return _isUnlock[_functionSign] && (_unlockAts[_functionSign] + _lockTime) <= block.timestamp;
+    function isUnlock(bytes4 _functionSign) public view virtual returns (bool) {
+        return
+            _isUnlock[_functionSign] &&
+            (_unlockAts[_functionSign] + _lockTime) <= block.timestamp;
     }
 
     /**
@@ -486,6 +488,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     /// `rewardsExpiration` Block time when the rewards per second stops.
     /// `lastRewardTime` Lastest pool reward updated
     /// `rewardPerSeconds` Reward to be claimable by seconds
+    /// `oldReserveBalance` Total rewards token already deposited 
     struct PoolInfo {
         uint256 rewardsStartTime;
         uint256 accRewardPerShare;
@@ -553,8 +556,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
     event WithdrawMultiple(address[] tokens);
 
-    constructor() TimeLock(86400) {
-    }
+    constructor() TimeLock(86400) {}
 
     /// @notice Returns the size of all current pools.
     function poolLength() public view returns (uint256 pools) {
@@ -634,7 +636,8 @@ contract SmartBaryFactory is TimeLock, Operator {
             "SmartBaryFactory: Invalid time"
         );
         require(
-            _rewardsExpiration > block.timestamp && _rewardsStartTime > block.timestamp,
+            _rewardsExpiration > block.timestamp &&
+                _rewardsStartTime > block.timestamp,
             "SmartBaryFactory: Invalid expiration time"
         );
 
@@ -659,7 +662,6 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
             _rewardsStartTime) * _rewardPerSeconds;
         for (uint256 i = 0; i < _rewardTokens.length; i++) {
-            
             _rewardTokens[i].safeTransferFrom(
                 msg.sender,
                 baryonFarmRewarder,
@@ -745,6 +747,8 @@ contract SmartBaryFactory is TimeLock, Operator {
             _rewardsStartTime) * _rewardPerSeconds;
 
         IERC20[] memory tokens = _rewarder.getRewardTokens();
+        PoolInfo storage pool = poolInfo[_pid];
+
 
         for (uint256 i = 0; i < tokens.length; i++) {
             uint256 tokenBalance = IERC20(tokens[i]).balanceOf(
@@ -754,28 +758,28 @@ contract SmartBaryFactory is TimeLock, Operator {
 
             // Deposit token to pool if not enough balance
             uint256 oldReserveBalance = (newRewardsStartTime -
-                poolInfo[_pid].rewardsStartTime) *
-                poolInfo[_pid].rewardPerSeconds +
-                poolInfo[_pid].oldReserveBalance[i];
+                pool.rewardsStartTime) *
+                pool.rewardPerSeconds +
+                pool.oldReserveBalance[i];
             uint256 remainReserveReward = tokenBalance > oldReserveBalance
                 ? tokenBalance - oldReserveBalance
                 : 0;
             IERC20(tokens[i]).safeTransferFrom(
                 msg.sender,
                 address(_rewarder),
-                rewardAmountEstTotal * rewardMultiplier >
-                remainReserveReward
-                ? (rewardAmountEstTotal * rewardMultiplier) -
-                    remainReserveReward
-                : 0
+                rewardAmountEstTotal * rewardMultiplier > remainReserveReward
+                    ? (rewardAmountEstTotal * rewardMultiplier) -
+                        remainReserveReward
+                    : 0
             );
-            poolInfo[_pid].oldReserveBalance[i] = oldReserveBalance;
+            pool.oldReserveBalance[i] = oldReserveBalance;
         }
 
         // Update information
-        poolInfo[_pid].rewardsStartTime = _rewardsStartTime;
-        poolInfo[_pid].rewardsExpiration = _rewardsExpiration;
-        poolInfo[_pid].rewardPerSeconds = _rewardPerSeconds;
+        pool.rewardsStartTime = _rewardsStartTime;
+        pool.rewardsExpiration = _rewardsExpiration;
+        pool.rewardPerSeconds = _rewardPerSeconds;
+        pool.lastRewardTime = _rewardsStartTime;
 
         emit PoolSet(
             _pid,
