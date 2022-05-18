@@ -540,9 +540,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 indexed pid,
         uint256 rewardsStartTime,
         uint256 rewardsExpiration,
-        uint256 rewardPerSecond,
-        SmartBaryFactoryRewarder indexed rewarder,
-        bool overwrite
+        uint256 rewardPerSecond
     );
     event PoolUpdate(
         uint256 indexed pid,
@@ -553,7 +551,6 @@ contract SmartBaryFactory is TimeLock, Operator {
 
     event WithdrawMultiplePool(uint256[] indexed pid);
     event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
-    event SetRewardConfig(uint256 indexed pid, IERC20[], uint256[]);
     event WithdrawMultiple(address[] tokens);
 
     constructor() TimeLock(86400) {
@@ -712,8 +709,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
         uint256 _rewardPerSeconds,
-        SmartBaryFactoryRewarder _rewarder,
-        bool overwrite
+        SmartBaryFactoryRewarder _rewarder
     ) external onlyOwner whenUnlock() {
         massUpdateAllPools();
         set(
@@ -721,8 +717,7 @@ contract SmartBaryFactory is TimeLock, Operator {
             _rewardsStartTime,
             _rewardsExpiration,
             _rewardPerSeconds,
-            _rewarder,
-            overwrite
+            _rewarder
         );
     }
 
@@ -732,8 +727,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
         uint256 _rewardPerSeconds,
-        SmartBaryFactoryRewarder _rewarder,
-        bool overwrite
+        SmartBaryFactoryRewarder _rewarder
     ) internal {
         require(
             _rewardsExpiration > _rewardsStartTime,
@@ -783,16 +777,11 @@ contract SmartBaryFactory is TimeLock, Operator {
         poolInfo[_pid].rewardsExpiration = _rewardsExpiration;
         poolInfo[_pid].rewardPerSeconds = _rewardPerSeconds;
 
-        if (overwrite) {
-            rewarder[_pid] = _rewarder;
-        }
         emit PoolSet(
             _pid,
             _rewardsStartTime,
             _rewardsExpiration,
-            _rewardPerSeconds,
-            overwrite ? _rewarder : rewarder[_pid],
-            overwrite
+            _rewardPerSeconds
         );
     }
 
@@ -1009,22 +998,6 @@ contract SmartBaryFactory is TimeLock, Operator {
             _rewarder.withdrawTokens(tokens);
         }
         emit WithdrawPoolTokens(pid, tokens);
-    }
-
-    /// @notice Update reward infomation
-    /// @param pid The index of the pool.
-    /// @param _rewardTokens The The contract of token reward.
-    /// @param _rewardMultipliers The amount of each additional reward token to be claimable
-    function setRewardConfig(
-        uint256 pid,
-        IERC20[] memory _rewardTokens,
-        uint256[] memory _rewardMultipliers
-    ) external onlyOwner whenUnlock() {
-        SmartBaryFactoryRewarder _rewarder = rewarder[pid];
-        if (address(_rewarder) != address(0)) {
-            _rewarder.initialize(_rewardTokens, _rewardMultipliers);
-        }
-        emit SetRewardConfig(pid, _rewardTokens, _rewardMultipliers);
     }
 
     /// @notice Withdraw all token from all pool ( not use this for LP tokens )
