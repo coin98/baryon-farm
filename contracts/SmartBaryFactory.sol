@@ -389,7 +389,10 @@ contract SmartBaryFactoryRewarder {
     function claimReward(address user, uint256 harvestAmount)
         external
         onlyBaryonFactory
+        returns (uint256[] memory totalReward)
     {
+        totalReward = new uint256[](rewardTokens.length);
+
         for (uint256 i; i < rewardTokens.length; ++i) {
             uint256 pendingReward = rewardDebts[user][i].add(
                 harvestAmount.mul(rewardMultipliers[i])
@@ -408,8 +411,10 @@ contract SmartBaryFactoryRewarder {
             uint256 claimRewardAmount = isOverPool ? rewardBal : pendingReward;
             if (claimRewardAmount > 0) {
                 rewardTokens[i].safeTransfer(user, claimRewardAmount);
+                totalReward[i] = claimRewardAmount;
             }
         }
+        return totalReward;
     }
 
     /// @param user The address of deposit user
@@ -488,7 +493,8 @@ contract SmartBaryFactory is TimeLock, Operator {
     /// `rewardsExpiration` Block time when the rewards per second stops.
     /// `lastRewardTime` Lastest pool reward updated
     /// `rewardPerSeconds` Reward to be claimable by seconds
-    /// `oldReserveBalance` Total rewards token already deposited 
+    /// `oldReserveBalance` Total rewards token already deposited
+    /// `claimedAmount` Total amount of rewards token already claimed
     struct PoolInfo {
         uint256 rewardsStartTime;
         uint256 accRewardPerShare;
@@ -496,10 +502,11 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 lastRewardTime;
         uint256 rewardPerSeconds;
         uint256[] oldReserveBalance;
+        uint256[] claimedAmount;
     }
 
     /// @notice Info of each pool pool.
-    PoolInfo[] public poolInfo;
+    PoolInfo[] private poolInfo;
     /// @notice Address of the LP token for each pool pool.
     IERC20[] public lpToken;
     /// @notice Address of each `SmartBaryFactoryRewarder` contract in pool.
@@ -558,6 +565,11 @@ contract SmartBaryFactory is TimeLock, Operator {
 
     constructor() TimeLock(86400) {}
 
+    /// @notice Returns pool info by ID
+    function getPoolInfo(uint256 pid) public view returns (PoolInfo memory) {
+        return poolInfo[pid];
+    }
+
     /// @notice Returns the size of all current pools.
     function poolLength() public view returns (uint256 pools) {
         pools = poolInfo.length;
@@ -573,7 +585,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     function farmCheckStartTime(PoolInfo memory pool) internal view {
         require(
             block.timestamp >= pool.rewardsStartTime,
-            "BaryonFarmV2: Invalid Start Time"
+            "SmartBaryFactory: Invalid Start Time"
         );
     }
 
@@ -582,7 +594,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     function farmCheckExpirationTime(PoolInfo memory pool) internal view {
         require(
             block.timestamp < pool.rewardsExpiration,
-            "BaryonFarmV2: Invalid Expiration Time"
+            "SmartBaryFactory: Invalid Expiration Time"
         );
     }
 
@@ -591,8 +603,8 @@ contract SmartBaryFactory is TimeLock, Operator {
         IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
         uint256 _rewardsStartTime,
-        uint256 _rewardPerSeconds,
         uint256 _rewardsExpiration,
+        uint256 _rewardPerSeconds,
         address _lpToken
     ) external onlyOperator {
         uint256 tokenCode;
@@ -610,20 +622,20 @@ contract SmartBaryFactory is TimeLock, Operator {
             _rewardTokens,
             _rewardMultipliers,
             _rewardsStartTime,
-            _rewardPerSeconds,
             _rewardsExpiration,
+            _rewardPerSeconds,
             lpTokenCall
         );
     }
 
-    /// @notice Add a new LP to the pool. Can only be called by the owner.
+    /// @notice Add a new LP to the pool. Can only be called by the operator.
     /// DO NOT add the same LP token more than once.
     function add(
         IERC20[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
         uint256 _rewardsStartTime,
-        uint256 _rewardPerSeconds,
         uint256 _rewardsExpiration,
+        uint256 _rewardPerSeconds,
         IERC20 _lpToken
     ) internal {
         require(
@@ -631,13 +643,16 @@ contract SmartBaryFactory is TimeLock, Operator {
             "SmartBaryFactory: LP token already added"
         );
 
+        _rewardsStartTime = _rewardsStartTime > block.timestamp
+            ? _rewardsStartTime
+            : block.timestamp;
+
         require(
             _rewardsExpiration > _rewardsStartTime,
             "SmartBaryFactory: Invalid time"
         );
         require(
-            _rewardsExpiration > block.timestamp &&
-                _rewardsStartTime > block.timestamp,
+            _rewardsExpiration > block.timestamp,
             "SmartBaryFactory: Invalid expiration time"
         );
 
@@ -655,9 +670,6 @@ contract SmartBaryFactory is TimeLock, Operator {
             )
         }
 
-        uint256[] memory oldReserveBalance = new uint256[](
-            _rewardTokens.length
-        );
         // Deposit token to pool before add new pool
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
             _rewardsStartTime) * _rewardPerSeconds;
@@ -667,7 +679,6 @@ contract SmartBaryFactory is TimeLock, Operator {
                 baryonFarmRewarder,
                 rewardAmountEstTotal * _rewardMultipliers[i]
             );
-            oldReserveBalance[i] = rewardAmountEstTotal * _rewardMultipliers[i];
         }
 
         SmartBaryFactoryRewarder(baryonFarmRewarder).initialize(
@@ -678,19 +689,15 @@ contract SmartBaryFactory is TimeLock, Operator {
         lpToken.push(_lpToken);
         rewarder.push(SmartBaryFactoryRewarder(baryonFarmRewarder));
 
-        // Validate time for not farm reward in the past
-        uint256 lastRewardTime = block.timestamp >= _rewardsStartTime
-            ? block.timestamp
-            : _rewardsStartTime;
-
         poolInfo.push(
             PoolInfo({
                 rewardsStartTime: _rewardsStartTime,
                 rewardsExpiration: _rewardsExpiration,
                 rewardPerSeconds: _rewardPerSeconds,
-                lastRewardTime: lastRewardTime,
+                lastRewardTime: _rewardsStartTime,
                 accRewardPerShare: 0,
-                oldReserveBalance: oldReserveBalance
+                claimedAmount: new uint256[](_rewardTokens.length),
+                oldReserveBalance: new uint256[](_rewardTokens.length)
             })
         );
 
@@ -710,17 +717,10 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _pid,
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
-        uint256 _rewardPerSeconds,
-        SmartBaryFactoryRewarder _rewarder
-    ) external onlyOwner whenUnlock() {
+        uint256 _rewardPerSeconds
+    ) external onlyOwner whenUnlock {
         massUpdateAllPools();
-        set(
-            _pid,
-            _rewardsStartTime,
-            _rewardsExpiration,
-            _rewardPerSeconds,
-            _rewarder
-        );
+        set(_pid, _rewardsStartTime, _rewardsExpiration, _rewardPerSeconds);
     }
 
     /// @notice Update the given pool's information
@@ -728,9 +728,12 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _pid,
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
-        uint256 _rewardPerSeconds,
-        SmartBaryFactoryRewarder _rewarder
+        uint256 _rewardPerSeconds
     ) internal {
+        _rewardsStartTime = _rewardsStartTime > block.timestamp
+            ? _rewardsStartTime
+            : block.timestamp;
+
         require(
             _rewardsExpiration > _rewardsStartTime,
             "SmartBaryFactory: Invalid time"
@@ -740,41 +743,53 @@ contract SmartBaryFactory is TimeLock, Operator {
             "SmartBaryFactory: Invalid expiration time"
         );
 
-        uint256 newRewardsStartTime = _rewardsStartTime > block.timestamp
-            ? _rewardsStartTime
+        PoolInfo storage pool = poolInfo[_pid];
+        SmartBaryFactoryRewarder factoryRewarder = rewarder[_pid];
+        IERC20[] memory tokens = factoryRewarder.getRewardTokens();
+        uint256[] memory multipliers = factoryRewarder.getRewardMultipliers();
+
+        uint256 oldExpiration = block.timestamp > pool.rewardsExpiration
+            ? pool.rewardsExpiration
             : block.timestamp;
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
             _rewardsStartTime) * _rewardPerSeconds;
 
-        IERC20[] memory tokens = _rewarder.getRewardTokens();
-        PoolInfo storage pool = poolInfo[_pid];
-
-
         for (uint256 i = 0; i < tokens.length; i++) {
             uint256 tokenBalance = IERC20(tokens[i]).balanceOf(
-                address(_rewarder)
+                address(factoryRewarder)
             );
-            uint256 rewardMultiplier = _rewarder.getRewardMultipliers()[i];
-
+            uint256 rewardMultiplier = multipliers[i];
             // Deposit token to pool if not enough balance
-            uint256 oldReserveBalance = (newRewardsStartTime -
+
+            uint256 oldReserveBalance = (oldExpiration -
                 pool.rewardsStartTime) *
                 pool.rewardPerSeconds +
                 pool.oldReserveBalance[i];
-            uint256 remainReserveReward = tokenBalance > oldReserveBalance
-                ? tokenBalance - oldReserveBalance
-                : 0;
-            IERC20(tokens[i]).safeTransferFrom(
-                msg.sender,
-                address(_rewarder),
-                rewardAmountEstTotal * rewardMultiplier > remainReserveReward
+
+            if (
+                oldReserveBalance > 0 &&
+                oldReserveBalance > pool.claimedAmount[i]
+            ) {
+                oldReserveBalance = oldReserveBalance.sub(
+                    pool.claimedAmount[i]
+                );
+
+                uint256 remainReserveReward = tokenBalance > oldReserveBalance
+                    ? tokenBalance - oldReserveBalance
+                    : 0;
+                uint256 amountNeedToTransferMore = rewardAmountEstTotal * (rewardMultiplier > remainReserveReward
                     ? (rewardAmountEstTotal * rewardMultiplier) -
                         remainReserveReward
-                    : 0
-            );
-            pool.oldReserveBalance[i] = oldReserveBalance;
+                    : 0);
+                IERC20(tokens[i]).safeTransferFrom(
+                    msg.sender,
+                    address(factoryRewarder),
+                    amountNeedToTransferMore
+                );
+                pool.oldReserveBalance[i] = oldReserveBalance;
+                pool.claimedAmount[i] = 0;
+            }
         }
-
         // Update information
         pool.rewardsStartTime = _rewardsStartTime;
         pool.rewardsExpiration = _rewardsExpiration;
@@ -872,6 +887,19 @@ contract SmartBaryFactory is TimeLock, Operator {
         }
     }
 
+    /// @notice Update the reward claimed each times deposit and harvest.
+    /// @param pid The index of the pool.
+    /// @param rewardClaimed The reward claimed of the pool.
+    function updateClaimedReward(uint256 pid, uint256[] memory rewardClaimed)
+        internal
+    {
+        PoolInfo storage pool = poolInfo[pid];
+
+        for (uint256 i = 0; i < rewarder[pid].getRewardTokens().length; i++) {
+            pool.claimedAmount[i] = pool.claimedAmount[i].add(rewardClaimed[i]);
+        }
+    }
+
     /// @notice Deposit LP tokens to Pool for reward allocation.
     /// @param pid The index of the pool.
     /// @param amount LP token amount to deposit.
@@ -892,7 +920,12 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.claimReward(to, _pendingReward);
+            uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+
+            updateClaimedReward(pid, rewardClaimed);
         }
 
         // Updated information
@@ -923,7 +956,11 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.claimReward(to, _pendingReward);
+            uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+            updateClaimedReward(pid, rewardClaimed);
         }
 
         emit Harvest(to, pid, _pendingReward);
@@ -951,7 +988,11 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.claimReward(to, _pendingReward);
+            uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+            updateClaimedReward(pid, rewardClaimed);
         }
 
         lpToken[pid].safeTransfer(to, amount);
@@ -979,7 +1020,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     function withdrawMultiplePool(uint256[] calldata pid)
         external
         onlyOwner
-        whenUnlock()
+        whenUnlock
     {
         for (uint256 i = 0; i < pid.length; i++) {
             SmartBaryFactoryRewarder _rewarder = rewarder[pid[i]];
