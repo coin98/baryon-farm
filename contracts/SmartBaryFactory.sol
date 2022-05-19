@@ -768,7 +768,7 @@ contract SmartBaryFactory is TimeLock, Operator {
 
             if (
                 oldReserveBalance > 0 &&
-                oldReserveBalance > pool.claimedAmount[i]
+                oldReserveBalance >= pool.claimedAmount[i]
             ) {
                 oldReserveBalance = oldReserveBalance.sub(
                     pool.claimedAmount[i]
@@ -777,10 +777,11 @@ contract SmartBaryFactory is TimeLock, Operator {
                 uint256 remainReserveReward = tokenBalance > oldReserveBalance
                     ? tokenBalance - oldReserveBalance
                     : 0;
-                uint256 amountNeedToTransferMore = rewardAmountEstTotal * (rewardMultiplier > remainReserveReward
+                uint256 amountNeedToTransferMore = (rewardAmountEstTotal *
+                    rewardMultiplier) > remainReserveReward
                     ? (rewardAmountEstTotal * rewardMultiplier) -
                         remainReserveReward
-                    : 0);
+                    : 0;
                 IERC20(tokens[i]).safeTransferFrom(
                     msg.sender,
                     address(factoryRewarder),
