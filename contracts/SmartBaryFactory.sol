@@ -912,7 +912,10 @@ contract SmartBaryFactory is TimeLock, Operator {
         address to = msg.sender;
 
         UserInfo storage user = userInfo[pid][to];
+        uint256 currentBalance = lpToken[pid].balanceOf(address(this));
         lpToken[pid].safeTransferFrom(to, address(this), amount);
+        uint256 afterBalance = lpToken[pid].balanceOf(address(this));
+        uint256 realAmount = afterBalance.sub(currentBalance);
 
         uint256 accumulatedReward = uint256(
             user.amount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION
@@ -921,21 +924,18 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            uint256[] memory rewardClaimed = _rewarder.claimReward(
-                to,
-                _pendingReward
-            );
-
-            updateClaimedReward(pid, rewardClaimed);
+            _rewarder.claimReward(to, _pendingReward);
         }
 
         // Updated information
-        user.amount = user.amount.add(amount);
+        user.amount = user.amount.add(realAmount);
         user.rewardDebt = accumulatedReward.add(
-            uint256(amount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION)
+            uint256(
+                realAmount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION
+            )
         );
 
-        emit Deposit(to, pid, amount, to);
+        emit Deposit(to, pid, realAmount, to);
     }
 
     /// @notice Harvest reward for deposited user
