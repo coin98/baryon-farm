@@ -924,7 +924,12 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
-            _rewarder.claimReward(to, _pendingReward);
+            uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+
+            updateClaimedReward(pid, rewardClaimed);
         }
 
         // Updated information
