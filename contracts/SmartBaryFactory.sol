@@ -393,9 +393,10 @@ contract SmartBaryFactoryRewarder {
     {
         totalReward = new uint256[](rewardTokens.length);
 
+
         for (uint256 i; i < rewardTokens.length; ++i) {
             uint256 pendingReward = rewardDebts[user][i].add(
-                harvestAmount.mul(rewardMultipliers[i])
+                harvestAmount.div(1e18).mul(rewardMultipliers[i])
             );
 
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
@@ -672,7 +673,7 @@ contract SmartBaryFactory is TimeLock, Operator {
 
         // Deposit token to pool before add new pool
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
-            _rewardsStartTime) * _rewardPerSeconds;
+            _rewardsStartTime) * _rewardPerSeconds.div(1e18);
         for (uint256 i = 0; i < _rewardTokens.length; i++) {
             _rewardTokens[i].safeTransferFrom(
                 msg.sender,
@@ -1070,3 +1071,5 @@ contract SmartBaryFactory is TimeLock, Operator {
         emit WithdrawMultiple(tokens);
     }
 }
+
+
