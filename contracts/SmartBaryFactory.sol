@@ -753,7 +753,7 @@ contract SmartBaryFactory is TimeLock, Operator {
             ? pool.rewardsExpiration
             : block.timestamp;
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
-            _rewardsStartTime) * _rewardPerSeconds;
+            _rewardsStartTime) * _rewardPerSeconds.div(1e18);
 
         for (uint256 i = 0; i < tokens.length; i++) {
             uint256 tokenBalance = IERC20(tokens[i]).balanceOf(
