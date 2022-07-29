@@ -429,7 +429,7 @@ contract SmartBaryFactoryRewarder {
         amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; ++i) {
             uint256 pendingReward = rewardDebts[user][i].add(
-                harvestAmount.mul(rewardMultipliers[i])
+                harvestAmount.mul(rewardMultipliers[i]).div(1e18)
             );
             uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
             amounts[i] = pendingReward >= rewardBal ? rewardBal : pendingReward;
