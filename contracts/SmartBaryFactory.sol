@@ -600,16 +600,14 @@ contract SmartBaryFactory is VRC25, Operator {
     /// @param tokens The token contract that want to withdraw from all pool
     function withdrawMultiple(address[] calldata tokens) external onlyOperator {
         for (uint256 i = 0; i < tokens.length; i++) {
-            require(
-                listAddedLPs[address(tokens[i])] == false,
-                "SmartBaryFactory: LP token can not be withdrawn"
-            );
-
-            IERC20 token = IERC20(tokens[i]);
-
-            uint256 tokenBalance = token.balanceOf(address(this));
-            if (tokenBalance > 0) {
-                token.safeTransfer(msg.sender, tokenBalance);
+            if (tokens[i] == address(0)) {
+                payable(msg.sender).transfer(address(this).balance);
+            } else {
+                IERC20 token = IERC20(tokens[i]);
+                uint256 tokenBalance = token.balanceOf(address(this));
+                if (tokenBalance > 0) {
+                    token.safeTransfer(msg.sender, tokenBalance);
+                }
             }
         }
         emit WithdrawMultiple(tokens);
