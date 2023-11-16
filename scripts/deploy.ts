@@ -7,9 +7,7 @@ async function main() {
 		"SBF",
 		18
 	);
-
 	await smartBaryFactory.deployed();
-
 	console.log(`Deploy to ${smartBaryFactory.address}`);
 }
 

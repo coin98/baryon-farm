@@ -21,7 +21,25 @@ const config: HardhatUserConfig = {
 				settings: {
 					optimizer: {
 						enabled: true,
-						runs: 1,
+						runs: 200,
+					},
+				},
+			},
+			{
+				version: "0.4.24",
+				settings: {
+					optimizer: {
+						enabled: true,
+						runs: 200,
+					},
+				},
+			},
+			{
+				version: "0.8.20",
+				settings: {
+					optimizer: {
+						enabled: true,
+						runs: 200,
 					},
 				},
 			},
@@ -69,6 +87,10 @@ const config: HardhatUserConfig = {
 		},
 		polygon: {
 			url: `https://polygon-mainnet.infura.io/v3/${infuraKey}`,
+			accounts: [privateKey],
+		},
+		viction_testnet: {
+			url: "https://rpc.testnet.tomochain.com",
 			accounts: [privateKey],
 		},
 	},
