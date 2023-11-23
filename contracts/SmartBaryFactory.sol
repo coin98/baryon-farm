@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.13;
+pragma solidity 0.8.17;
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.

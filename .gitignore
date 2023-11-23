@@ -1,15 +1,15 @@
-build
-node_modules
-**/artifacts/**
-
-node_modules
-.env
-coverage
-coverage.json
-typechain
-typechain-types
-
-# Hardhat files
-cache
-artifacts
-
+# Coin98 EVM contract gitignore
+/.DS_Store
+/.env
+/.npmrc
+/.prettierrc
+/.vscode
+/.yarn
+/artifacts
+/cache
+/node_modules
+/package-lock.json
+/pnpm-lock.yaml
+/typechain-types
+/yarn-error.log
+/yarn.lock
