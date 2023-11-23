@@ -99,7 +99,7 @@ contract SmartBaryFactory is VRC25, Operator {
     event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
     event WithdrawMultiple(address[] tokens);
 
-    constructor(string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 86400){}
+    constructor(string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 0){}
 
     function _estimateFee(uint256 value) internal view override returns (uint256) {
         if(value > minFee()) {

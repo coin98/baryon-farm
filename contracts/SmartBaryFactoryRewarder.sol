@@ -25,7 +25,7 @@ contract SmartBaryFactoryRewarder is VRC25 {
     mapping(address => mapping(uint256 => uint256)) private rewardDebts;
 
     /// @param _factoryV2 The address of the factory contract
-    constructor(address _factoryV2, string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 86400) {
+    constructor(address _factoryV2, string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 0) {
         require(
             _factoryV2 != address(0),
             "SmartBaryFactoryRewarder: Invalid factory address"
