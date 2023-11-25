@@ -10,10 +10,13 @@ import "./interfaces/IERC20.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/SafeERC20.sol";
 import "./SmartBaryFactoryRewarder.sol";
+import "./interfaces/IWVIC.sol";
 
 contract SmartBaryFactory is VRC25, Operator {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
+
+    address public WVIC;
 
     /// @notice Info of each Deposited user.
     /// `amount` LP token amount
@@ -99,7 +102,9 @@ contract SmartBaryFactory is VRC25, Operator {
     event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
     event WithdrawMultiple(address[] tokens);
 
-    constructor(string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 0){}
+    constructor(string memory name, string memory symbol, uint8 decimals_, address _WVIC) VRC25(name, symbol, decimals_, 0){
+        WVIC = _WVIC;
+    }
 
     function _estimateFee(uint256 value) internal view override returns (uint256) {
         if(value > minFee()) {
@@ -488,6 +493,53 @@ contract SmartBaryFactory is VRC25, Operator {
         emit Deposit(to, pid, realAmount, to);
     }
 
+
+    /// @notice Deposit LP tokens (VIC) to Pool for reward allocation.
+    /// @param pid The index of the pool.
+    /// @param amount LP token amount to deposit.
+    function depositVIC(uint256 pid, uint256 amount) public {
+        PoolInfo memory pool = updatePool(pid);
+        farmCheckStartTime(pool);
+        farmCheckExpirationTime(pool);
+
+        address to = msg.sender;
+
+        UserInfo storage user = userInfo[pid][to];
+        uint256 currentBalance = lpToken[pid].balanceOf(address(this));
+
+        IWVIC(WVIC).deposit{value: amount}();
+
+        lpToken[pid].safeTransferFrom(to, address(this), amount);
+
+        uint256 afterBalance = lpToken[pid].balanceOf(address(this));
+        uint256 realAmount = afterBalance.sub(currentBalance);
+
+        uint256 accumulatedReward = uint256(
+            user.amount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION
+        );
+        uint256 _pendingReward = accumulatedReward.sub(user.rewardDebt);
+
+        SmartBaryFactoryRewarder _rewarder = rewarder[pid];
+        if (address(_rewarder) != address(0)) {
+            uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+
+            updateClaimedReward(pid, rewardClaimed);
+        }
+
+        // Updated information
+        user.amount = user.amount.add(realAmount);
+        user.rewardDebt = accumulatedReward.add(
+            uint256(
+                realAmount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION
+            )
+        );
+
+        emit Deposit(to, pid, realAmount, to);
+    }
+
     /// @notice Harvest reward for deposited user
     /// @param pid The index of the pool.
     function harvest(uint256 pid) public {
@@ -508,6 +560,35 @@ contract SmartBaryFactory is VRC25, Operator {
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
             uint256[] memory rewardClaimed = _rewarder.claimReward(
+                to,
+                _pendingReward
+            );
+            updateClaimedReward(pid, rewardClaimed);
+        }
+
+        emit Harvest(to, pid, _pendingReward);
+    }
+
+    /// @notice Harvest reward for deposited user
+    /// @param pid The index of the pool.
+    function harvestVIC(uint256 pid) public {
+        PoolInfo memory pool = updatePool(pid);
+        farmCheckStartTime(pool);
+
+        address to = msg.sender;
+
+        UserInfo storage user = userInfo[pid][to];
+        uint256 accumulatedReward = uint256(
+            user.amount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION
+        );
+        uint256 _pendingReward = accumulatedReward.sub(user.rewardDebt);
+
+        // Updated information
+        user.rewardDebt = accumulatedReward;
+
+        SmartBaryFactoryRewarder _rewarder = rewarder[pid];
+        if (address(_rewarder) != address(0)) {
+            uint256[] memory rewardClaimed = _rewarder.claimRewardVIC(
                 to,
                 _pendingReward
             );
@@ -547,6 +628,7 @@ contract SmartBaryFactory is VRC25, Operator {
         }
 
         lpToken[pid].safeTransfer(to, amount);
+
 
         emit Withdraw(to, pid, amount, to);
         emit Harvest(to, pid, _pendingReward);
@@ -611,6 +693,11 @@ contract SmartBaryFactory is VRC25, Operator {
             }
         }
         emit WithdrawMultiple(tokens);
+    }
+
+    function safeTransferVIC(address to, uint value) internal {
+        (bool success,) = to.call{value:value}(new bytes(0));
+        require(success, 'TransferHelper: VIC_TRANSFER_FAILED');
     }
 }
 

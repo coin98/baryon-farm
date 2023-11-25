@@ -10,6 +10,8 @@ import "./libraries/SafeMath.sol";
 import "./interfaces/IERC20.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/SafeERC20.sol";
+
+import "./interfaces/IWVIC.sol";
 contract SmartBaryFactoryRewarder is VRC25 {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
@@ -17,6 +19,8 @@ contract SmartBaryFactoryRewarder is VRC25 {
     IERC20[] public rewardTokens;
     uint256[] public rewardMultipliers;
     address private FACTORY_V2;
+
+    address public WVIC;
 
     /// @dev Maximum reward tokens can claim in single pool
     uint256 private constant MAX_REWARDS = 100;
@@ -106,6 +110,42 @@ contract SmartBaryFactoryRewarder is VRC25 {
                 : 0;
             uint256 claimRewardAmount = isOverPool ? rewardBal : pendingReward;
             if (claimRewardAmount > 0) {
+                rewardTokens[i].safeTransfer(user, claimRewardAmount);
+                totalReward[i] = claimRewardAmount;
+            }
+        }
+        return totalReward;
+    }
+
+    /// @param user The address of deposit user
+    /// @param harvestAmount The amount user can be claimable
+    /// @notice Must deposit first before user can be claimed
+    function claimRewardVIC(address user, uint256 harvestAmount)
+        external
+        onlyBaryonFactory
+        returns (uint256[] memory totalReward)
+    {
+        totalReward = new uint256[](rewardTokens.length);
+
+
+        for (uint256 i; i < rewardTokens.length; ++i) {
+            uint256 pendingReward = rewardDebts[user][i].add(
+                harvestAmount.mul(rewardMultipliers[i]).div(1e18)
+            );
+
+            uint256 rewardBal = rewardTokens[i].balanceOf(address(this));
+            require(
+                rewardBal > 0,
+                "SmartBaryFactoryRewarder: Reward Balances must be greater than 0"
+            );
+            bool isOverPool = pendingReward >= rewardBal;
+
+            rewardDebts[user][i] = isOverPool
+                ? pendingReward.sub(rewardBal)
+                : 0;
+            uint256 claimRewardAmount = isOverPool ? rewardBal : pendingReward;
+            if (claimRewardAmount > 0) {
+                IWVIC(WVIC).withdraw(claimRewardAmount);
                 rewardTokens[i].safeTransfer(user, claimRewardAmount);
                 totalReward[i] = claimRewardAmount;
             }
