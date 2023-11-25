@@ -3,6 +3,7 @@
 pragma solidity 0.8.17;
 
 import "./interfaces/IVRC25.sol";
+import "./interfaces/IWVIC.sol";
 
 import "./libraries/AdvancedVRC25.sol";
 import "./libraries/SafeMath.sol";
@@ -14,6 +15,8 @@ import "./VRC25.sol";
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
 contract SmartBaryFactory is VRC25, Operator {
+    address public constant WVIC_ADDRESS = address(0xC054751BdBD24Ae713BA3Dc9Bd9434aBe2abc1ce);
+
     using SafeMath for uint256;
     using AdvancedVRC25 for IVRC25;
 
@@ -449,7 +452,7 @@ contract SmartBaryFactory is VRC25, Operator {
     /// @notice Deposit LP tokens to Pool for reward allocation.
     /// @param pid The index of the pool.
     /// @param amount LP token amount to deposit.
-    function deposit(uint256 pid, uint256 amount) public {
+    function deposit(uint256 pid, uint256 amount) public payable {
         PoolInfo memory pool = updatePool(pid);
         farmCheckStartTime(pool);
         farmCheckExpirationTime(pool);
@@ -458,7 +461,15 @@ contract SmartBaryFactory is VRC25, Operator {
 
         UserInfo storage user = userInfo[pid][to];
         uint256 currentBalance = lpToken[pid].balanceOf(address(this));
-        lpToken[pid].safeTransferFrom(to, address(this), amount);
+        if(msg.value > 0) {
+            require(
+                address(lpToken[pid]) == WVIC_ADDRESS,
+                "SmartBaryFactory: Invalid LP Token"
+            );
+            IWVIC(WVIC_ADDRESS).deposit{value: msg.value}();
+        } else {
+            lpToken[pid].safeTransferFrom(to, address(this), amount);
+        }
         uint256 afterBalance = lpToken[pid].balanceOf(address(this));
         uint256 realAmount = afterBalance.sub(currentBalance);
 
@@ -546,7 +557,7 @@ contract SmartBaryFactory is VRC25, Operator {
             updateClaimedReward(pid, rewardClaimed);
         }
 
-        lpToken[pid].safeTransfer(to, amount);
+        _transferOrUnwrapTo(lpToken[pid], to, amount);
 
         emit Withdraw(to, pid, amount, to);
         emit Harvest(to, pid, _pendingReward);
@@ -562,7 +573,7 @@ contract SmartBaryFactory is VRC25, Operator {
         user.amount = 0;
         user.rewardDebt = 0;
 
-        lpToken[pid].safeTransfer(to, amount);
+        _transferOrUnwrapTo(lpToken[pid], to, amount);
         emit EmergencyWithdraw(to, pid, amount, to);
     }
 
@@ -606,10 +617,20 @@ contract SmartBaryFactory is VRC25, Operator {
                 IVRC25 token = IVRC25(tokens[i]);
                 uint256 tokenBalance = token.balanceOf(address(this));
                 if (tokenBalance > 0) {
-                    token.safeTransfer(msg.sender, tokenBalance);
+                    _transferOrUnwrapTo(token, msg.sender, tokenBalance);
                 }
             }
         }
         emit WithdrawMultiple(tokens);
+    }
+
+    /// @notice transfer VRC25 token to `recipient`. if the token is WVIC, unwrap it and send VIC to `recipient` instead
+    function _transferOrUnwrapTo(IVRC25 token, address recipient, uint256 amount) internal {
+        if(address(token) == WVIC_ADDRESS) {
+            IWVIC(WVIC_ADDRESS).withdraw(amount);
+            payable(recipient).transfer(amount);
+        } else {
+            token.safeTransfer(recipient, amount);
+        }
     }
 }

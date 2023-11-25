@@ -3,6 +3,7 @@
 pragma solidity 0.8.17;
 
 import "./interfaces/IVRC25.sol";
+import "./interfaces/IWVIC.sol";
 
 import "./libraries/AdvancedVRC25.sol";
 import "./libraries/SafeMath.sol";
@@ -11,6 +12,8 @@ import "./libraries/SafeMath.sol";
 /// @title Smart Baryon Factory Rewarder
 /// @notice Pool to hold reward minted from SmartBaryFactory
 contract SmartBaryFactoryRewarder {
+    address public constant WVIC_ADDRESS = address(0xC054751BdBD24Ae713BA3Dc9Bd9434aBe2abc1ce);
+
     using SafeMath for uint256;
     using AdvancedVRC25 for IVRC25;
 
@@ -99,7 +102,7 @@ contract SmartBaryFactoryRewarder {
                 : 0;
             uint256 claimRewardAmount = isOverPool ? rewardBal : pendingReward;
             if (claimRewardAmount > 0) {
-                rewardTokens[i].safeTransfer(user, claimRewardAmount);
+                _transferOrUnwrapTo(rewardTokens[i], user, claimRewardAmount);
                 totalReward[i] = claimRewardAmount;
             }
         }
@@ -141,7 +144,7 @@ contract SmartBaryFactoryRewarder {
             uint256 tokenBalance = rewardTokens[i].balanceOf(address(this));
 
             if (tokenBalance > 0) {
-                rewardTokens[i].safeTransfer(FACTORY_V2, tokenBalance);
+                _transferOrUnwrapTo(rewardTokens[i], FACTORY_V2, tokenBalance);
             }
         }
     }
@@ -156,8 +159,20 @@ contract SmartBaryFactoryRewarder {
             uint256 tokenBalance = _token.balanceOf(address(this));
 
             if (tokenBalance > 0) {
-                _token.safeTransfer(FACTORY_V2, tokenBalance);
+                _transferOrUnwrapTo(_token, FACTORY_V2, tokenBalance);
             }
+        }
+    }
+
+    /// @notice transfer VRC25 token to `recipient`. if the token is WVIC, unwrap it and send VIC to `recipient` instead
+    function _transferOrUnwrapTo(IVRC25 token, address recipient, uint256 amount) internal {
+        if(address(token) == WVIC_ADDRESS) {
+            IWVIC(WVIC_ADDRESS).withdraw(amount);
+            payable(recipient).transfer(amount);
+        } else if(address(token) == address(0)) {
+            payable(recipient).transfer(amount);
+        } else {
+            token.safeTransfer(recipient, amount);
         }
     }
 }
