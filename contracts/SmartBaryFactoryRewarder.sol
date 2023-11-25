@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity 0.8.17;
+
+import "./interfaces/IVRC25.sol";
+
+import "./libraries/AdvancedVRC25.sol";
+import "./libraries/SafeMath.sol";
 
 // File contracts/SmartBaryFactoryRewarder.sol
 /// @title Smart Baryon Factory Rewarder
 /// @notice Pool to hold reward minted from SmartBaryFactory
-
-import "./VRC25.sol";
-import "./libraries/SafeMath.sol";
-import "./interfaces/IERC20.sol";
-import "./libraries/SafeMath.sol";
-import "./libraries/SafeERC20.sol";
-contract SmartBaryFactoryRewarder is VRC25 {
+contract SmartBaryFactoryRewarder {
     using SafeMath for uint256;
-    using SafeERC20 for IERC20;
+    using AdvancedVRC25 for IVRC25;
 
-    IERC20[] public rewardTokens;
+    IVRC25[] public rewardTokens;
     uint256[] public rewardMultipliers;
     address private FACTORY_V2;
 
@@ -25,20 +25,13 @@ contract SmartBaryFactoryRewarder is VRC25 {
     mapping(address => mapping(uint256 => uint256)) private rewardDebts;
 
     /// @param _factoryV2 The address of the factory contract
-    constructor(address _factoryV2, string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 0) {
+    constructor(address _factoryV2) {
         require(
             _factoryV2 != address(0),
             "SmartBaryFactoryRewarder: Invalid factory address"
         );
 
         FACTORY_V2 = _factoryV2;
-    }
-
-    function _estimateFee(uint256 value) internal view override returns (uint256) {
-        if(value > minFee()) {
-            return value;
-        }
-        return minFee();
     }
 
     modifier onlyBaryonFactory() {
@@ -53,7 +46,7 @@ contract SmartBaryFactoryRewarder is VRC25 {
     /// @param _rewardMultipliers The amount of each reward token to be claimable
     /// @notice Each reward multiplier should matching with each reward tokens index
     function initialize(
-        IERC20[] memory _rewardTokens,
+        IVRC25[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers
     ) external onlyBaryonFactory {
         require(
@@ -119,7 +112,7 @@ contract SmartBaryFactoryRewarder is VRC25 {
     function pendingClaimable(address user, uint256 harvestAmount)
         external
         view
-        returns (IERC20[] memory tokens, uint256[] memory amounts)
+        returns (IVRC25[] memory tokens, uint256[] memory amounts)
     {
         amounts = new uint256[](rewardTokens.length);
         for (uint256 i; i < rewardTokens.length; ++i) {
@@ -133,7 +126,7 @@ contract SmartBaryFactoryRewarder is VRC25 {
     }
 
     /// @notice Current state of reward tokens
-    function getRewardTokens() external view returns (IERC20[] memory) {
+    function getRewardTokens() external view returns (IVRC25[] memory) {
         return rewardTokens;
     }
 
@@ -159,7 +152,7 @@ contract SmartBaryFactoryRewarder is VRC25 {
         onlyBaryonFactory
     {
         for (uint256 i; i < tokens.length; ++i) {
-            IERC20 _token = IERC20(tokens[i]);
+            IVRC25 _token = IVRC25(tokens[i]);
             uint256 tokenBalance = _token.balanceOf(address(this));
 
             if (tokenBalance > 0) {

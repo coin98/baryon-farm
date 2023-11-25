@@ -1,19 +1,21 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity 0.8.17;
+
+import "./interfaces/IVRC25.sol";
+
+import "./libraries/AdvancedVRC25.sol";
+import "./libraries/SafeMath.sol";
+import "./libraries/Operator.sol";
+
+import "./SmartBaryFactoryRewarder.sol";
+import "./VRC25.sol";
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
-import "./VRC25.sol";
-import "./libraries/SafeMath.sol";
-import "./libraries/Operator.sol";
-import "./interfaces/IERC20.sol";
-import "./libraries/SafeMath.sol";
-import "./libraries/SafeERC20.sol";
-import "./SmartBaryFactoryRewarder.sol";
-
 contract SmartBaryFactory is VRC25, Operator {
-    using SafeERC20 for IERC20;
     using SafeMath for uint256;
+    using AdvancedVRC25 for IVRC25;
 
     /// @notice Info of each Deposited user.
     /// `amount` LP token amount
@@ -44,7 +46,7 @@ contract SmartBaryFactory is VRC25, Operator {
     /// @notice Info of each pool pool.
     PoolInfo[] private poolInfo;
     /// @notice Address of the LP token for each pool pool.
-    IERC20[] public lpToken;
+    IVRC25[] public lpToken;
     /// @notice Address of each `SmartBaryFactoryRewarder` contract in pool.
     SmartBaryFactoryRewarder[] public rewarder;
     /// @notice Info of each user that stakes LP tokens.
@@ -79,7 +81,7 @@ contract SmartBaryFactory is VRC25, Operator {
         uint256 rewardsStartTime,
         uint256 rewardsExpiration,
         uint256 rewardPerSecond,
-        IERC20 indexed lpToken,
+        IVRC25 indexed lpToken,
         address rewarder
     );
     event PoolSet(
@@ -119,7 +121,7 @@ contract SmartBaryFactory is VRC25, Operator {
     }
 
     /// @notice Returns list of all lpTokens already added
-    function lpTokens() external view returns (IERC20[] memory) {
+    function lpTokens() external view returns (IVRC25[] memory) {
         return lpToken;
     }
 
@@ -143,7 +145,7 @@ contract SmartBaryFactory is VRC25, Operator {
 
     /// @notice Add rewarder pool
     function addPool(
-        IERC20[] memory _rewardTokens,
+        IVRC25[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
@@ -154,7 +156,7 @@ contract SmartBaryFactory is VRC25, Operator {
         assembly {
             tokenCode := extcodesize(_lpToken)
         }
-        IERC20 lpTokenCall = IERC20(_lpToken);
+        IVRC25 lpTokenCall = IVRC25(_lpToken);
         require(
             tokenCode > 0 && lpTokenCall.balanceOf(address(this)) >= 0,
             "SmartBaryFactory: Invalid token code"
@@ -174,12 +176,12 @@ contract SmartBaryFactory is VRC25, Operator {
     /// @notice Add a new LP to the pool. Can only be called by the operator.
     /// DO NOT add the same LP token more than once.
     function add(
-        IERC20[] memory _rewardTokens,
+        IVRC25[] memory _rewardTokens,
         uint256[] memory _rewardMultipliers,
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
         uint256 _rewardPerSeconds,
-        IERC20 _lpToken
+        IVRC25 _lpToken
     ) internal {
         require(
             listAddedLPs[address(_lpToken)] == false,
@@ -200,7 +202,7 @@ contract SmartBaryFactory is VRC25, Operator {
         );
 
         bytes memory bytecode = type(SmartBaryFactoryRewarder).creationCode;
-        bytecode = abi.encodePacked(bytecode, abi.encode(address(this), "Baryon Farm Rewarder", "BFR", 18));
+        bytecode = abi.encodePacked(bytecode, abi.encode(address(this)));
         bytes32 salt = keccak256(abi.encodePacked(_lpToken, _rewardsStartTime));
         address baryonFarmRewarder;
 
@@ -212,8 +214,6 @@ contract SmartBaryFactory is VRC25, Operator {
                 salt
             )
         }
-
-        // address baryonFarmRewarder = address(new SmartBaryFactoryRewarder(address(this), "Baryon Farm Rewarder", "BFR", 18));
 
         // Deposit token to pool before add new pool
         uint256 rewardAmountEstTotal = (_rewardsExpiration -
@@ -290,7 +290,7 @@ contract SmartBaryFactory is VRC25, Operator {
 
         PoolInfo storage pool = poolInfo[_pid];
         SmartBaryFactoryRewarder factoryRewarder = rewarder[_pid];
-        IERC20[] memory tokens = factoryRewarder.getRewardTokens();
+        IVRC25[] memory tokens = factoryRewarder.getRewardTokens();
         uint256[] memory multipliers = factoryRewarder.getRewardMultipliers();
 
         uint256 oldExpiration = block.timestamp > pool.rewardsExpiration
@@ -300,7 +300,7 @@ contract SmartBaryFactory is VRC25, Operator {
             _rewardsStartTime) * _rewardPerSeconds.div(1e18);
 
         for (uint256 i = 0; i < tokens.length; i++) {
-            uint256 tokenBalance = IERC20(tokens[i]).balanceOf(
+            uint256 tokenBalance = IVRC25(tokens[i]).balanceOf(
                 address(factoryRewarder)
             );
             uint256 rewardMultiplier = multipliers[i];
@@ -327,7 +327,7 @@ contract SmartBaryFactory is VRC25, Operator {
                     ? (rewardAmountEstTotal * rewardMultiplier) -
                         remainReserveReward
                     : 0;
-                IERC20(tokens[i]).safeTransferFrom(
+                IVRC25(tokens[i]).safeTransferFrom(
                     msg.sender,
                     address(factoryRewarder),
                     amountNeedToTransferMore
@@ -603,7 +603,7 @@ contract SmartBaryFactory is VRC25, Operator {
             if (tokens[i] == address(0)) {
                 payable(msg.sender).transfer(address(this).balance);
             } else {
-                IERC20 token = IERC20(tokens[i]);
+                IVRC25 token = IVRC25(tokens[i]);
                 uint256 tokenBalance = token.balanceOf(address(this));
                 if (tokenBalance > 0) {
                     token.safeTransfer(msg.sender, tokenBalance);
@@ -613,5 +613,3 @@ contract SmartBaryFactory is VRC25, Operator {
         emit WithdrawMultiple(tokens);
     }
 }
-
-
