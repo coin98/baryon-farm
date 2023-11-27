@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.6.2;
 
-import "./interfaces/IVRC25.sol";
-import "./interfaces/IERC165.sol";
+import "../interfaces/IVRC25.sol";
+import "../interfaces/IERC165.sol";
 
-import "./libraries/Address.sol";
-import "./libraries/SafeMath.sol";
+import "./Address.sol";
+import "./SafeMath.sol";
 
 /**
  * @title Base VRC25 implementation
@@ -195,7 +195,7 @@ abstract contract VRC25 is IVRC25, IERC165 {
     /**
      * @notice Remove `amount` tokens owned by caller from circulation.
      */
-    function burn(uint256 amount) external returns (bool) {
+    function burn(uint256 amount) external virtual returns (bool) {
         uint256 fee = estimateFee(0);
         _burn(msg.sender, amount);
         _chargeFeeFrom(msg.sender, address(this), fee);

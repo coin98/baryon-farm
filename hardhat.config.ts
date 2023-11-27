@@ -11,6 +11,31 @@ const privateKey = process.env.PRIVATE_KEY || '0x0000000000000000000000000000000
 const infuraKey = process.env.INFURA_API_KEY || '';
 const etherscanApi = process.env.ETHERSCAN_API_KEY || '';
 
+const metadataConfig = {
+  bytecodeHash: 'none',
+  useLiteralContent: false,
+};
+const outputSelectionConfig = {
+  '*': {
+    '': [
+      'ast'
+    ],
+    '*': [
+      'abi',
+      'metadata',
+      'devdoc',
+      'userdoc',
+      'storageLayout',
+      'evm.legacyAssembly',
+      'evm.bytecode',
+      'evm.deployedBytecode',
+      'evm.methodIdentifiers',
+      'evm.gasEstimates',
+      'evm.assembly'
+    ]
+  }
+};
+
 const config: HardhatUserConfig = {
   solidity: {
     compilers: [
@@ -21,6 +46,19 @@ const config: HardhatUserConfig = {
             enabled: true,
             runs: 1000,
           },
+          metadata: metadataConfig,
+          outputSelection: outputSelectionConfig,
+        },
+      },
+      {
+        version: '0.7.6',
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 1000,
+          },
+          metadata: metadataConfig,
+          outputSelection: outputSelectionConfig,
         },
       },
     ],

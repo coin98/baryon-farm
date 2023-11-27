@@ -8,9 +8,9 @@ import "./interfaces/IWVIC.sol";
 import "./libraries/AdvancedVRC25.sol";
 import "./libraries/SafeMath.sol";
 import "./libraries/Operator.sol";
+import "./libraries/VRC25.sol";
 
 import "./SmartBaryFactoryRewarder.sol";
-import "./VRC25.sol";
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
