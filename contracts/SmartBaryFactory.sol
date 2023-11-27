@@ -15,7 +15,7 @@ import "./SmartBaryFactoryRewarder.sol";
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
 contract SmartBaryFactory is VRC25, Operator {
-    address public constant WVIC_ADDRESS = address(0xC054751BdBD24Ae713BA3Dc9Bd9434aBe2abc1ce);
+    address public WVIC_ADDRESS;
 
     using SafeMath for uint256;
     using AdvancedVRC25 for IVRC25;
@@ -104,7 +104,10 @@ contract SmartBaryFactory is VRC25, Operator {
     event WithdrawPoolTokens(uint256 indexed pid, address[] tokens);
     event WithdrawMultiple(address[] tokens);
 
-    constructor(string memory name, string memory symbol, uint8 decimals_) VRC25(name, symbol, decimals_, 0){}
+    constructor(address wvicAddress, string memory name, string memory symbol, uint8 decimals_)
+        VRC25(name, symbol, decimals_, 0) {
+        WVIC_ADDRESS = wvicAddress;
+    }
 
     function _estimateFee(uint256 value) internal view override returns (uint256) {
         if(value > minFee()) {
@@ -205,7 +208,7 @@ contract SmartBaryFactory is VRC25, Operator {
         );
 
         bytes memory bytecode = type(SmartBaryFactoryRewarder).creationCode;
-        bytecode = abi.encodePacked(bytecode, abi.encode(address(this)));
+        bytecode = abi.encodePacked(bytecode, abi.encode(address(this), WVIC_ADDRESS));
         bytes32 salt = keccak256(abi.encodePacked(_lpToken, _rewardsStartTime));
         address baryonFarmRewarder;
 

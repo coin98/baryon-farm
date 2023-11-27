@@ -12,7 +12,7 @@ import "./libraries/SafeMath.sol";
 /// @title Smart Baryon Factory Rewarder
 /// @notice Pool to hold reward minted from SmartBaryFactory
 contract SmartBaryFactoryRewarder {
-    address public constant WVIC_ADDRESS = address(0xC054751BdBD24Ae713BA3Dc9Bd9434aBe2abc1ce);
+    address public WVIC_ADDRESS;
 
     using SafeMath for uint256;
     using AdvancedVRC25 for IVRC25;
@@ -28,13 +28,14 @@ contract SmartBaryFactoryRewarder {
     mapping(address => mapping(uint256 => uint256)) private rewardDebts;
 
     /// @param _factoryV2 The address of the factory contract
-    constructor(address _factoryV2) {
+    constructor(address _factoryV2, address _wvicAddress) {
         require(
             _factoryV2 != address(0),
             "SmartBaryFactoryRewarder: Invalid factory address"
         );
 
         FACTORY_V2 = _factoryV2;
+        WVIC_ADDRESS = _wvicAddress;
     }
 
     modifier onlyBaryonFactory() {

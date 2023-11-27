@@ -44,7 +44,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 1000,
+            runs: 200,
           },
           metadata: metadataConfig,
           outputSelection: outputSelectionConfig,
@@ -55,7 +55,7 @@ const config: HardhatUserConfig = {
         settings: {
           optimizer: {
             enabled: true,
-            runs: 1000,
+            runs: 200,
           },
           metadata: metadataConfig,
           outputSelection: outputSelectionConfig,
@@ -65,7 +65,7 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {
-      allowUnlimitedContractSize: false,
+      allowUnlimitedContractSize: true,
     },
     mainnet: {
       url: `https://mainnet.infura.io/v3/${infuraKey}`,
