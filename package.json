@@ -23,5 +23,9 @@
   "bugs": {
     "url": "https://github.com/coin98/baryon-farm/issues"
   },
-  "homepage": "https://github.com/coin98/baryon-farm#readme"
+  "homepage": "https://github.com/coin98/baryon-farm#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.20.1"
+  }
 }
