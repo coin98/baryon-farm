@@ -25,7 +25,9 @@
   },
   "homepage": "https://github.com/coin98/baryon-farm#readme",
   "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.6",
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.1",
     "hardhat": "^2.20.1"
   }
 }

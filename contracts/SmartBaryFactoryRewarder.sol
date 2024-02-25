@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma experimental ABIEncoderV2;
-pragma solidity 0.8.13;
+pragma solidity 0.8.24;
 
 import './libraries/SafeERC20.sol';
 

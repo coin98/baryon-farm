@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma experimental ABIEncoderV2;
-pragma solidity 0.8.13;
+pragma solidity 0.8.24;
 
 import './libraries/SafeMath.sol';
 import './libraries/SafeERC20.sol';
 import './libraries/TimeLock.sol';
 import './libraries/Operator.sol';
 import './SmartBaryFactoryRewarder.sol';
+import './interfaces/IERC721.sol';
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
@@ -20,6 +21,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     struct UserInfo {
         uint256 amount;
         uint256 rewardDebt;
+        uint256[] tokenIds;
     }
 
     /// @notice Info of each pool.
@@ -43,7 +45,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     /// @notice Info of each pool pool.
     PoolInfo[] private poolInfo;
     /// @notice Address of the LP token for each pool pool.
-    IERC20[] public lpToken;
+    IERC721[] public lpToken;
     /// @notice Address of each `SmartBaryFactoryRewarder` contract in pool.
     SmartBaryFactoryRewarder[] public rewarder;
     /// @notice Info of each user that stakes LP tokens.
@@ -62,13 +64,13 @@ contract SmartBaryFactory is TimeLock, Operator {
     event Withdraw(
         address indexed user,
         uint256 indexed pid,
-        uint256 amount,
+        uint256[] tokenIds,
         address indexed to
     );
     event EmergencyWithdraw(
         address indexed user,
         uint256 indexed pid,
-        uint256 amount,
+        uint256[] tokenIds,
         address indexed to
     );
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
@@ -78,7 +80,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 rewardsStartTime,
         uint256 rewardsExpiration,
         uint256 rewardPerSecond,
-        IERC20 indexed lpToken,
+        IERC721 indexed lpToken,
         address rewarder
     );
     event PoolSet(
@@ -111,7 +113,7 @@ contract SmartBaryFactory is TimeLock, Operator {
     }
 
     /// @notice Returns list of all lpTokens already added
-    function lpTokens() external view returns (IERC20[] memory) {
+    function lpTokens() external view returns (IERC721[] memory) {
         return lpToken;
     }
 
@@ -146,7 +148,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         assembly {
             tokenCode := extcodesize(_lpToken)
         }
-        IERC20 lpTokenCall = IERC20(_lpToken);
+        IERC721 lpTokenCall = IERC721(_lpToken);
         require(
             tokenCode > 0 && lpTokenCall.balanceOf(address(this)) >= 0,
             "SmartBaryFactory: Invalid token code"
@@ -171,7 +173,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _rewardsStartTime,
         uint256 _rewardsExpiration,
         uint256 _rewardPerSeconds,
-        IERC20 _lpToken
+        IERC721 _lpToken
     ) internal {
         require(
             listAddedLPs[address(_lpToken)] == false,
@@ -438,17 +440,21 @@ contract SmartBaryFactory is TimeLock, Operator {
 
     /// @notice Deposit LP tokens to Pool for reward allocation.
     /// @param pid The index of the pool.
-    /// @param amount LP token amount to deposit.
-    function deposit(uint256 pid, uint256 amount) public {
+    /// @param tokenIds The token IDs to deposit.
+    function deposit(uint256 pid, uint256[] memory tokenIds) public {
         PoolInfo memory pool = updatePool(pid);
         farmCheckStartTime(pool);
         farmCheckExpirationTime(pool);
 
         address to = msg.sender;
-
         UserInfo storage user = userInfo[pid][to];
         uint256 currentBalance = lpToken[pid].balanceOf(address(this));
-        lpToken[pid].safeTransferFrom(to, address(this), amount);
+        
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            lpToken[pid].safeTransferFrom(to, address(this), tokenIds[i]);
+            user.tokenIds.push(tokenIds[i]);
+        }
+
         uint256 afterBalance = lpToken[pid].balanceOf(address(this));
         uint256 realAmount = afterBalance.sub(currentBalance);
 
@@ -466,7 +472,6 @@ contract SmartBaryFactory is TimeLock, Operator {
 
             updateClaimedReward(pid, rewardClaimed);
         }
-
         // Updated information
         user.amount = user.amount.add(realAmount);
         user.rewardDebt = accumulatedReward.add(
@@ -509,8 +514,8 @@ contract SmartBaryFactory is TimeLock, Operator {
 
     /// @notice Withdraw LP tokens from Factory and harvest reward for deposited user.
     /// @param pid The index of the pool.
-    /// @param amount LP token amount to withdraw.
-    function withdrawAndHarvest(uint256 pid, uint256 amount) public {
+    /// @param tokenIds The token IDs to withdraw.
+    function withdrawAndHarvest(uint256 pid, uint256[] memory tokenIds) public {
         PoolInfo memory pool = updatePool(pid);
         farmCheckStartTime(pool);
         address to = msg.sender;
@@ -522,10 +527,12 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 _pendingReward = accumulatedReward.sub(user.rewardDebt);
 
         // Updated information
+        uint256 withdrawAmount = tokenIds.length;
         user.rewardDebt = accumulatedReward.sub(
-            uint256(amount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION)
+            uint256(
+              withdrawAmount.mul(pool.accRewardPerShare) / ACC_REWARD_PRECISION)
         );
-        user.amount = user.amount.sub(amount);
+        user.amount = user.amount.sub(withdrawAmount);
 
         SmartBaryFactoryRewarder _rewarder = rewarder[pid];
         if (address(_rewarder) != address(0)) {
@@ -536,9 +543,13 @@ contract SmartBaryFactory is TimeLock, Operator {
             updateClaimedReward(pid, rewardClaimed);
         }
 
-        lpToken[pid].safeTransfer(to, amount);
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            lpToken[pid].safeTransferFrom(address(this), to, tokenIds[i]);
+            
+            user.tokenIds = removeItemFromArray(user.tokenIds, i);
+        }
 
-        emit Withdraw(to, pid, amount, to);
+        emit Withdraw(to, pid, tokenIds, to);
         emit Harvest(to, pid, _pendingReward);
     }
 
@@ -548,12 +559,13 @@ contract SmartBaryFactory is TimeLock, Operator {
         address to = msg.sender;
 
         UserInfo storage user = userInfo[pid][to];
-        uint256 amount = user.amount;
         user.amount = 0;
         user.rewardDebt = 0;
 
-        lpToken[pid].safeTransfer(to, amount);
-        emit EmergencyWithdraw(to, pid, amount, to);
+        for (uint256 i = 0; i < user.tokenIds.length; i++) {
+            lpToken[pid].safeTransferFrom(address(this), to, user.tokenIds[i]);
+        }
+        emit EmergencyWithdraw(to, pid, user.tokenIds, to);
     }
 
     /// @notice Withdraw all token reward in pool
@@ -603,6 +615,20 @@ contract SmartBaryFactory is TimeLock, Operator {
             }
         }
         emit WithdrawMultiple(tokens);
+    }
+
+    function removeItemFromArray(uint256[] memory array, uint256 index)
+        internal
+        pure
+        returns (uint256[] memory value)
+    {
+        if (index >= array.length) return array;
+
+        for (uint256 i = index; i < array.length - 1; i++) {
+            array[i] = array[i + 1];
+        }
+        delete array[array.length - 1];
+        return array;
     }
 }
 
