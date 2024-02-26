@@ -546,7 +546,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         for (uint256 i = 0; i < tokenIds.length; i++) {
             lpToken[pid].safeTransferFrom(address(this), to, tokenIds[i]);
             
-            user.tokenIds = removeItemFromArray(user.tokenIds, i);
+            removeItemFromArray(user.tokenIds, i);
         }
 
         emit Withdraw(to, pid, tokenIds, to);
@@ -617,17 +617,16 @@ contract SmartBaryFactory is TimeLock, Operator {
         emit WithdrawMultiple(tokens);
     }
 
-    function removeItemFromArray(uint256[] memory array, uint256 index)
+    function removeItemFromArray(uint256[] storage array, uint256 index)
         internal
-        pure
         returns (uint256[] memory value)
     {
+        // Delete the element from the array not keeping the order
         if (index >= array.length) return array;
 
-        for (uint256 i = index; i < array.length - 1; i++) {
-            array[i] = array[i + 1];
-        }
-        delete array[array.length - 1];
+        array[index] = array[array.length - 1];
+        array.pop();
+        
         return array;
     }
 }
