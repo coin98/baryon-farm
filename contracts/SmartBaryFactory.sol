@@ -109,18 +109,6 @@ contract SmartBaryFactory is VRC25, Operator {
         WVIC_ADDRESS = wvicAddress;
     }
 
-    /**
-     * @notice Receive native token
-     */
-    fallback() external payable {
-    }
-
-    /**
-     * @notice Receive native token
-     */
-    receive() external payable {
-    }
-
     function _estimateFee(uint256 value) internal view override returns (uint256) {
         if(value > minFee()) {
             return value;
@@ -222,7 +210,7 @@ contract SmartBaryFactory is VRC25, Operator {
         bytes memory bytecode = type(SmartBaryFactoryRewarder).creationCode;
         bytecode = abi.encodePacked(bytecode, abi.encode(address(this), WVIC_ADDRESS));
         bytes32 salt = keccak256(abi.encodePacked(_lpToken, _rewardsStartTime));
-        address payable baryonFarmRewarder;
+        address baryonFarmRewarder;
 
         assembly {
             baryonFarmRewarder := create2(

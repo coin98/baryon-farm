@@ -46,18 +46,6 @@ contract SmartBaryFactoryRewarder {
         _;
     }
 
-    /**
-     * @notice Receive native token
-     */
-    fallback() external payable {
-    }
-
-    /**
-     * @notice Receive native token
-     */
-    receive() external payable {
-    }
-
     /// @param _rewardTokens The address of each reward token
     /// @param _rewardMultipliers The amount of each reward token to be claimable
     /// @notice Each reward multiplier should matching with each reward tokens index
