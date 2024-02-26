@@ -23,5 +23,11 @@
   "bugs": {
     "url": "https://github.com/coin98/baryon-farm/issues"
   },
-  "homepage": "https://github.com/coin98/baryon-farm#readme"
+  "homepage": "https://github.com/coin98/baryon-farm#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^2.0.6",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "~4.8.3",
+    "hardhat": "^2.20.1"
+  }
 }
