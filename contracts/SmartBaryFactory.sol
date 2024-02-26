@@ -740,6 +740,15 @@ contract SmartBaryFactory is TimeLock, Operator {
         return lpToken;
     }
 
+    /// @notice Returns list of user deposited tokenIds
+    function userTokenIds(uint256 pid, address user)
+        external
+        view
+        returns (uint256[] memory)
+    {
+        return userInfo[pid][user].tokenIds;
+    }
+
     /// @notice Check Block time start condition of each pool
     /// @param pool Pool to check block time
     function farmCheckStartTime(PoolInfo memory pool) internal view {

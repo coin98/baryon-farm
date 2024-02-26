@@ -57,6 +57,7 @@ describe("Smart Baryon Factory", function () {
   })
 
   it("User deposit", async () => {
+    let userInfo = await factory.userInfo(BigInt(0), user.address);
     // Mint a NFT
     await nftToken.connect(owner).mint(user.address, BigInt(0));
     expect(await nftToken.balanceOf(user.address)).to.equal(BigInt(1));
@@ -64,6 +65,7 @@ describe("Smart Baryon Factory", function () {
     // User deposit
     await nftToken.connect(user).approve(await factory.getAddress(), BigInt(0));
     await factory.connect(user).deposit(BigInt(0), [BigInt(0)]);
+    userInfo = await factory.userInfo(BigInt(0), user.address);
   });
 
   it("Check for pending reward", async () => {
@@ -100,5 +102,11 @@ describe("Smart Baryon Factory", function () {
     expect(pendingReward3).to.greaterThan(BigInt(0));
   });
 
-  
+  it("Withdraw deposited NFT", async () => {
+    await factory.connect(user).withdrawAndHarvest(BigInt(0), [BigInt(0)]);
+    expect(await nftToken.balanceOf(user.address)).to.equal(BigInt(1));
+
+    const userTokenIds = await factory.userTokenIds(BigInt(0), user.address);
+    expect(userTokenIds.length).to.equal(0);
+  })
 });
