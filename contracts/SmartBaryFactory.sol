@@ -36,6 +36,30 @@ library SafeMath {
 }
 
 /**
+ * @title ERC-721 token receiver interface
+ * @dev Interface for any contract that wants to support safeTransfers
+ * from ERC-721 asset contracts.
+ */
+interface IERC721Receiver {
+    /**
+     * @dev Whenever an {IERC721} `tokenId` token is transferred to this contract via {IERC721-safeTransferFrom}
+     * by `operator` from `from`, this function is called.
+     *
+     * It must return its Solidity selector to confirm the token transfer.
+     * If any other value is returned or the interface is not implemented by the recipient, the transfer will be
+     * reverted.
+     *
+     * The selector can be obtained in Solidity with `IERC721Receiver.onERC721Received.selector`.
+     */
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external returns (bytes4);
+}
+
+/**
  * @dev Interface of the ERC-165 standard, as defined in the
  * https://eips.ethereum.org/EIPS/eip-165[ERC].
  *
@@ -634,7 +658,7 @@ contract SmartBaryFactoryRewarder {
 
 /// @title Smart Baryon Factory
 /// @notice Factory contract gives out a reward tokens per block.
-contract SmartBaryFactory is TimeLock, Operator {
+contract SmartBaryFactory is TimeLock, Operator, IERC721Receiver {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
@@ -1083,7 +1107,7 @@ contract SmartBaryFactory is TimeLock, Operator {
         uint256 currentBalance = lpToken[pid].balanceOf(address(this));
         
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            lpToken[pid].transferFrom(to, address(this), tokenIds[i]);
+            lpToken[pid].safeTransferFrom(to, address(this), tokenIds[i]);
             user.tokenIds.push(tokenIds[i]);
         }
 
@@ -1247,6 +1271,16 @@ contract SmartBaryFactory is TimeLock, Operator {
             }
         }
         emit WithdrawMultiple(tokens);
+    }
+
+
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+    ) external pure returns (bytes4) {
+        return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
     function removeItemFromArray(uint256[] storage array, uint256 index)
