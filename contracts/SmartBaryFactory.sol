@@ -1200,9 +1200,10 @@ contract SmartBaryFactory is TimeLock, Operator, IERC721Receiver {
         }
 
         for (uint256 i = 0; i < tokenIds.length; i++) {
-            lpToken[pid].safeTransferFrom(address(this), to, tokenIds[i]);
+            uint256 id = tokenIds[i];
             
-            removeItemFromArray(user.tokenIds, i);
+            removeTokenId(user.tokenIds, id);
+            lpToken[pid].safeTransferFrom(address(this), to, id);
         }
 
         emit Withdraw(to, pid, tokenIds, to);
@@ -1283,17 +1284,20 @@ contract SmartBaryFactory is TimeLock, Operator, IERC721Receiver {
         return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
     }
 
-    function removeItemFromArray(uint256[] storage array, uint256 index)
-        internal
-        returns (uint256[] memory value)
-    {
-        // Delete the element from the array not keeping the order
-        if (index >= array.length) return array;
-
-        array[index] = array[array.length - 1];
-        array.pop();
-        
-        return array;
+    /**
+     * @dev Remove tokenId from user tokenIds
+     * @param tokenIds user staked tokenIds
+     * @param id tokenId to remove
+     */
+    function removeTokenId(uint256[] storage tokenIds, uint256 id) internal {
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            if (tokenIds[i] == id) {
+                tokenIds[i] = tokenIds[tokenIds.length - 1];
+                tokenIds.pop();
+                return;
+            }
+        }
+        revert("SmartBaryFactory: Token ID not found");
     }
 }
 
