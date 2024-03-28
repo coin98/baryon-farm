@@ -16,75 +16,70 @@ import {
 import { deployFixture } from "./shared/fixtures";
 import { parseEther } from "ethers/lib/utils";
 
+let owner: SignerWithAddress;
+let acc1: SignerWithAddress;
+let acc2: SignerWithAddress;
+
+let factory: SmartBaryFactory;
+let rewarder: SmartBaryFactoryRewarder;
+let usdt: TestERC20;
+let usdc: TestERC20;
+let starship: TestERC721;
+
+let rewardPerSecond: BigNumberish;
+let rewardMultiplierUsdt: BigNumberish;
+let rewardMultiplierUsdc: BigNumberish;
+
+let rewardStartTime: number;
+let rewardExpiration: number;
+
+let snapshotId: string;
+
+const poolWith2Tokens = async function () {
+  const tx = await factory
+    .connect(owner)
+    .addPool(
+      [usdt.address, usdc.address],
+      [rewardMultiplierUsdt, rewardMultiplierUsdc],
+      rewardStartTime,
+      rewardExpiration,
+      rewardPerSecond,
+      starship.address
+    );
+  let deployPoolReceipt = await tx.wait();
+
+  // Get event PoolAdded
+  let poolAddedEvent = deployPoolReceipt.events?.find(
+    (event) => event.event === "PoolAdded"
+  );
+  let rewarderAddress = poolAddedEvent?.args?.rewarder;
+  const Rewarder = await ethers.getContractFactory("SmartBaryFactoryRewarder");
+  rewarder = Rewarder.attach(rewarderAddress);
+};
+
+const poolWithToken = async function () {
+  const tx = await factory
+    .connect(owner)
+    .addPool(
+      [usdt.address],
+      [rewardMultiplierUsdt],
+      rewardStartTime,
+      rewardExpiration,
+      rewardPerSecond,
+      starship.address
+    );
+  let deployPoolReceipt = await tx.wait();
+
+  // Get event PoolAdded
+  let poolAddedEvent = deployPoolReceipt.events?.find(
+    (event) => event.event === "PoolAdded"
+  );
+  let rewarderAddress = poolAddedEvent?.args?.rewarder;
+  const Rewarder = await ethers.getContractFactory("SmartBaryFactoryRewarder");
+  rewarder = Rewarder.attach(rewarderAddress);
+};
+
 describe("Smart Baryon Factory", function () {
-  let owner: SignerWithAddress;
-  let acc1: SignerWithAddress;
-  let acc2: SignerWithAddress;
-
-  let factory: SmartBaryFactory;
-  let rewarder: SmartBaryFactoryRewarder;
-  let c98: TestERC20;
-  let usdt: TestERC20;
-  let usdc: TestERC20;
-  let starship: TestERC721;
-
-  let rewardPerSecond: BigNumberish;
-  let rewardMultiplierUsdt: BigNumberish;
-  let rewardMultiplierUsdc: BigNumberish;
-
-  let rewardStartTime: number;
-  let rewardExpiration: number;
-
-  let snapshotId: string;
-
-  const poolWith2Tokens = async function () {
-    const tx = await factory
-      .connect(owner)
-      .addPool(
-        [usdt.address, usdc.address],
-        [rewardMultiplierUsdt, rewardMultiplierUsdc],
-        rewardStartTime,
-        rewardExpiration,
-        rewardPerSecond,
-        starship.address
-      );
-    let deployPoolReceipt = await tx.wait();
-
-    // Get event PoolAdded
-    let poolAddedEvent = deployPoolReceipt.events?.find(
-      (event) => event.event === "PoolAdded"
-    );
-    let rewarderAddress = poolAddedEvent?.args?.rewarder;
-    const Rewarder = await ethers.getContractFactory(
-      "SmartBaryFactoryRewarder"
-    );
-    rewarder = Rewarder.attach(rewarderAddress);
-  };
-
-  const poolWithToken = async function () {
-    const tx = await factory
-      .connect(owner)
-      .addPool(
-        [usdt.address],
-        [rewardMultiplierUsdt],
-        rewardStartTime,
-        rewardExpiration,
-        rewardPerSecond,
-        starship.address
-      );
-    let deployPoolReceipt = await tx.wait();
-
-    // Get event PoolAdded
-    let poolAddedEvent = deployPoolReceipt.events?.find(
-      (event) => event.event === "PoolAdded"
-    );
-    let rewarderAddress = poolAddedEvent?.args?.rewarder;
-    const Rewarder = await ethers.getContractFactory(
-      "SmartBaryFactoryRewarder"
-    );
-    rewarder = Rewarder.attach(rewarderAddress);
-  };
-
   before(async function () {
     let fixtures = await loadFixture(deployFixture);
     owner = fixtures.owner;
@@ -93,7 +88,6 @@ describe("Smart Baryon Factory", function () {
 
     factory = fixtures.smartBaryFactory;
 
-    c98 = fixtures.c98;
     usdt = fixtures.usdt;
     usdc = fixtures.usdc;
     starship = fixtures.starship;
