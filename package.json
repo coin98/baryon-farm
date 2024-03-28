@@ -23,5 +23,25 @@
   "bugs": {
     "url": "https://github.com/coin98/baryon-farm/issues"
   },
-  "homepage": "https://github.com/coin98/baryon-farm#readme"
+  "homepage": "https://github.com/coin98/baryon-farm#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-chai-matchers": "^1.0.5",
+    "@nomicfoundation/hardhat-network-helpers": "^1.0.8",
+    "@nomicfoundation/hardhat-toolbox": "^1.0.2",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@openzeppelin/contracts": "~4.8.3",
+    "@openzeppelin/test-helpers": "^0.5.16",
+    "@types/chai": "^4.3.4",
+    "@types/mocha": "^9.1.1",
+    "chai": "^4.3.7",
+    "dotenv": "^16.0.3",
+    "ethers": "^5.7.2",
+    "hardhat": "^2.20.1",
+    "hardhat-dependency-compiler": "^1.1.3",
+    "hardhat-deploy": "^0.11.25",
+    "hardhat-gas-reporter": "^1.0.9",
+    "mocha": "^9.1.0",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^4.7.4"
+  }
 }
